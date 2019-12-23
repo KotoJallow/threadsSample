@@ -3,37 +3,43 @@
 #include <time.h>
 #include <pthread.h>
 
+#define SIZE 4
 
-#define SIZE 10
+int mainMerger = 0;
 
 typedef struct segment {
 		int* arr;
 		int len;
+		int offset;
+		double *results;
 	}
 segment;
-
-void* f(void * args){
-	printf("Hello From Thread\n");
-}
 
 void * averager(void* arg){
 	segment *sgt = (segment*) arg;
 	int* arr = sgt->arr;
 	int len = sgt->len;
+	int offset = sgt->offset;
 
 	int i,sum = 0;
-	for(i=0;i<len;i++){
-		sum += *(arr+i);
+	for(i=0;i<len;++i){
+		sum += *(arr+i+offset);
 	}
 	double avg =  (double) sum/len;
+	if(!mainMerger)
+		*(sgt->results) = avg;
 	printf("Average from %lu is %.2f\n",pthread_self(),avg);
 }
 
 void fillArray(int* arr){
 	int i;
-	for(i=0;i<SIZE;i++){
+	for(i=0;i<SIZE;++i){
 		*(arr+i) = 100 + rand()%900;
 	}
+}
+void allocateMemToSegment(segment *seg[],int len){
+	int i;
+	for(i=0;i<len;++i) seg[i] = (segment*) malloc(sizeof(segment));
 }
 void display(int *arr){int i;for(i=0;i<SIZE;i++)printf("%d ",*(arr+i));printf("\n");}
 int main(int argc,char* argv[]){
@@ -48,16 +54,36 @@ int main(int argc,char* argv[]){
 
 		return -1;
 	}
-	segment* sgt = (segment*)malloc(sizeof(segment));
-	int arr[SIZE];
+	segment* sgt[len+1];
+	int i, arr[SIZE];
+	pthread_t thread[len+1];
+	double results[len];
 	fillArray(arr);
-
-	sgt->arr = arr;
-	sgt->len = len;
-	pthread_t thread;
-	pthread_create(&thread,NULL,averager,(void*)sgt);
-	pthread_join(thread,NULL);
-	free(sgt);
 	display(arr);
+	allocateMemToSegment(sgt,len+1);
+
+	int segLen = SIZE/len;
+	int remainder = SIZE%len;
+
+	for(i=0;i<len;++i){
+		sgt[i]->arr = arr;
+		sgt[i]->len = segLen;
+		sgt[i]->offset = (i+1 == len) ? i*len + remainder : i*len; //get the offset of the next thread
+		sgt[i]->results = &results[i];
+		pthread_create(&thread[i],NULL,averager,(void*)sgt[i]);
+	}
+	for(i=0;i<len;++i)
+		pthread_join(thread[i],NULL);
+	for(i=0;i<len;i++) printf("Koto: %.2f\n",results[i]);
+	
+	sgt[len]->arr = results;
+	sgt[len]->len = len;
+	sgt[len]->offset = 0;
+	sgt[len]->results = NULL;
+	mainMerger = 1;
+	pthread_create(&thread[len],NULL,averager,(void*)sgt[len]);
+	pthread_join(thread[len],NULL);
+	
+	free(sgt);
 	return 0;
 }
