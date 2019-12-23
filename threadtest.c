@@ -3,9 +3,7 @@
 #include <time.h>
 #include <pthread.h>
 
-#define SIZE 4
-
-int mainMerger = 0;
+#define SIZE 1000
 
 typedef struct segment {
 		int* arr;
@@ -26,8 +24,8 @@ void * averager(void* arg){
 		sum += *(arr+i+offset);
 	}
 	double avg =  (double) sum/len;
-	if(!mainMerger)
-		*(sgt->results) = avg;
+	
+	*(sgt->results) = avg;
 	printf("Average from %lu is %.2f\n",pthread_self(),avg);
 }
 
@@ -36,6 +34,11 @@ void fillArray(int* arr){
 	for(i=0;i<SIZE;++i){
 		*(arr+i) = 100 + rand()%900;
 	}
+}
+double mainAverage(double *arr,int len){
+	int i,sum = 0;
+	for(i=0;i<len;++i) sum+=arr[i];
+	return (double) sum/len;
 }
 void allocateMemToSegment(segment *seg[],int len){
 	int i;
@@ -59,7 +62,7 @@ int main(int argc,char* argv[]){
 	pthread_t thread[len+1];
 	double results[len];
 	fillArray(arr);
-	display(arr);
+	//display(arr);
 	allocateMemToSegment(sgt,len+1);
 
 	int segLen = SIZE/len;
@@ -75,15 +78,8 @@ int main(int argc,char* argv[]){
 	for(i=0;i<len;++i)
 		pthread_join(thread[i],NULL);
 	for(i=0;i<len;i++) printf("Koto: %.2f\n",results[i]);
-	
-	sgt[len]->arr = results;
-	sgt[len]->len = len;
-	sgt[len]->offset = 0;
-	sgt[len]->results = NULL;
-	mainMerger = 1;
-	pthread_create(&thread[len],NULL,averager,(void*)sgt[len]);
-	pthread_join(thread[len],NULL);
-	
+	double avg = mainAverage(results,len);
+	printf("Average is %.2f",avg);	
 	free(sgt);
 	return 0;
 }
